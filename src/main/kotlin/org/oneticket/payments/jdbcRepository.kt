@@ -9,10 +9,10 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 @Repository
-class JdbcRepository (private val jdbc: JdbcClient) : Paymentrepository {
+class JdbcRepository (private val jdbc: JdbcClient) : PaymentRepository {
     private val mapper = RowMapper { rs, _ ->
         Payment(
-            id = rs.getString("id"),
+            id = rs.getString("payment_id"),
             orderId = rs.getInt("order_id"),
             amountCents = rs.getInt("amount_cents"),
             currency = rs.getString("currency"),

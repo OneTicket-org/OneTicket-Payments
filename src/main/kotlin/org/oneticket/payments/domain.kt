@@ -22,6 +22,5 @@ data class Payment (
 )
 
 // strategy is decided here
-fun generatePaymentId(): String {
-    return UUID.randomUUID().toString()
-}
+fun generatePaymentId(): String =
+    "pay_" + UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
