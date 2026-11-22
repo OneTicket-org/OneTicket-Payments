@@ -1,21 +1,22 @@
 -- Create the payments table
-Create TABLE payments (
+CREATE TABLE payments (
   payment_id VARCHAR(255) PRIMARY KEY,
-  order_id INTEGER NOT NULL,
-  amount_cents INTEGER NOT NULL
-    CHECK ( amount_cents >= 0),
-  currency CHAR(10) NOT NULL,
+  -- One payment per order ([BIZ-17]): the UNIQUE constraint makes the rule race-safe across replicas.
+  order_id BIGINT NOT NULL UNIQUE,
+  -- Keycloak subject of the customer who placed the order (needed to hide other customers' payments, [API-18]).
+  customer_id UUID NOT NULL,
+  -- Money is NUMERIC(12,2) plus an ISO 4217 currency column ([BIZ-23]).
+  amount NUMERIC(12, 2) NOT NULL
+    CHECK (amount > 0),
+  currency CHAR(3) NOT NULL
+    CHECK (currency ~ '^[A-Z]{3}$'),
   status VARCHAR(20) NOT NULL
       CHECK (status IN ('PENDING', 'SUCCEEDED', 'DECLINED', 'TIMED_OUT', 'REFUNDED'))
     DEFAULT 'PENDING',
+  -- Row version exposed as the strong ETag ([API-29], [API-32]).
+  version BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL
     DEFAULT NOW(),
   completed_at TIMESTAMPTZ
     CHECK ( completed_at IS NULL OR completed_at >= created_at)
 );
-
-CREATE INDEX idx_payments_order_id ON payments(order_id);
-
--- optionally, you can enforce that only one payment per order can be in a non-terminal state (PENDING, TIMED_OUT)
--- by creating a unique index on the combination of order_id and status, but this is commented out for now.
--- UNIQUE INDEX idx_payments_order_id_status ON payments(order_id, status);

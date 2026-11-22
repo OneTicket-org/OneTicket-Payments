@@ -1,6 +1,8 @@
 package org.oneticket.payments
 
+import java.math.BigDecimal
 import java.time.Instant
+import java.util.Currency
 import java.util.UUID
 
 enum class PaymentStatus {
@@ -11,16 +13,25 @@ enum class PaymentStatus {
     REFUNDED
 }
 
+/** Exact amount of money with its ISO 4217 currency ([BIZ-22]): never a floating point. */
+data class Money(
+    val amount: BigDecimal,
+    val currency: Currency
+)
+
 data class Payment (
     val id: String,
-    val orderId: Int,
-    val amountCents: Int,
-    val currency: String,
+    val orderId: Long,
+    val customerId: UUID,
+    val amount: Money,
     val status: PaymentStatus,
+    /** Row version, exposed as the strong ETag ([API-29]). */
+    val version: Long,
     val createdAt: Instant,
     val completedAt: Instant?
 )
 
-// strategy is decided here
-fun generatePaymentId(): String =
-    "pay_" + UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
+/** Port producing payment identifiers, so that services never generate ids themselves ([SVC-15]). */
+fun interface PaymentIdGenerator {
+    fun next(): String
+}

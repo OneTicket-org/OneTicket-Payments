@@ -48,7 +48,7 @@ class ValidationFailedException(
 )
 
 class OrderAlreadyHasPaymentException(
-    orderId: Int,
+    orderId: Long,
     paymentId: String
 ) : ApiException(
     status = HttpStatus.CONFLICT,
@@ -66,6 +66,14 @@ class PaymentNotFoundException(paymentId: String) : ApiException(
     detail = "Payment $paymentId does not exist."
 )
 
+class MalformedPaymentIdException(paymentId: String) : ApiException(
+    status = HttpStatus.BAD_REQUEST,
+    slug = "malformed-request",
+    title = "Malformed request",
+    code = "MALFORMED_REQUEST",
+    detail = "Payment id '$paymentId' is not a valid payment identifier."
+)
+
 @RestControllerAdvice
 class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
 
@@ -80,8 +88,11 @@ class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
         req: HttpServletRequest,
         errors: List<FieldError>? = null,
         retryAfter: Int? = null,
+        extraHeaders: HttpHeaders? = null,
     ) : ResponseEntity<Problem> {
         val builder = ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON)
+        if (extraHeaders != null)
+            builder.headers(extraHeaders)
         if (retryAfter != null)
             builder.header(HttpHeaders.RETRY_AFTER, retryAfter.toString())
         return builder.body(
@@ -123,7 +134,9 @@ class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
     fun other(e: Exception, req: HttpServletRequest): ResponseEntity<Problem> {
         if (e is ErrorResponse) {
             val s = HttpStatus.valueOf(e.statusCode.value())
-            return build(s, "http-error", s.reasonPhrase, "HTTP_${s.value()}", e.body.detail, req)
+            // e.headers carries what HTTP requires, e.g. `Allow` on a 405 ([API-11]).
+            return build(s, "http-error", s.reasonPhrase, "HTTP_${s.value()}", e.body.detail, req,
+                extraHeaders = e.headers)
         }
         log.error("Unexpected error", e)
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal server error",

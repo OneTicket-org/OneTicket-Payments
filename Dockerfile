@@ -8,7 +8,8 @@ COPY gradle/ ./gradle/
 RUN chmod +x ./gradlew
 
 COPY src/ ./src/
-RUN ./gradlew --no-daemon bootJar
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon bootJar
 
 # Run the packaged application on a JRE-only image.
 FROM eclipse-temurin:25.0.5_8-jre-noble AS runtime
