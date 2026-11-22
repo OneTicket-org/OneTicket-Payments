@@ -10,6 +10,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.jdbc.CannotGetJdbcConnectionException
+import org.springframework.transaction.CannotCreateTransactionException
 import org.springframework.web.ErrorResponse
 import org.springframework.web.HttpMediaTypeNotAcceptableException
 import org.springframework.web.HttpMediaTypeNotSupportedException
@@ -75,7 +76,7 @@ class MalformedPaymentIdException(paymentId: String) : ApiException(
 )
 
 @RestControllerAdvice
-class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
+class ApiExceptionHandler {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -123,7 +124,13 @@ class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
         build(HttpStatus.NOT_ACCEPTABLE, "not-acceptable", "Not acceptable",
             "NOT_ACCEPTABLE", "This operation produces application/json.", req)
 
-    @ExceptionHandler(DataAccessResourceFailureException::class, CannotGetJdbcConnectionException::class)
+    // Database down or pool exhausted: plain JDBC raises CannotGetJdbcConnectionException, a transactional
+    // (JPA) access CannotCreateTransactionException ([API-19]: 503 carries Retry-After).
+    @ExceptionHandler(
+        DataAccessResourceFailureException::class,
+        CannotGetJdbcConnectionException::class,
+        CannotCreateTransactionException::class
+    )
     fun dbDown(e: Exception, req: HttpServletRequest): ResponseEntity<Problem> {
         log.error("Database unavailable", e)
         return build(HttpStatus.SERVICE_UNAVAILABLE, "service-unavailable", "Service unavailable",
@@ -134,6 +141,10 @@ class ApiExceptionHandler(private val httpServletRequest: HttpServletRequest) {
     fun other(e: Exception, req: HttpServletRequest): ResponseEntity<Problem> {
         if (e is ErrorResponse) {
             val s = HttpStatus.valueOf(e.statusCode.value())
+            // Wrong parameter type, missing parameter or header...: the contract's BadRequest.
+            if (s == HttpStatus.BAD_REQUEST)
+                return build(s, "malformed-request", "Malformed request", "MALFORMED_REQUEST",
+                    e.body.detail, req, extraHeaders = e.headers)
             // e.headers carries what HTTP requires, e.g. `Allow` on a 405 ([API-11]).
             return build(s, "http-error", s.reasonPhrase, "HTTP_${s.value()}", e.body.detail, req,
                 extraHeaders = e.headers)

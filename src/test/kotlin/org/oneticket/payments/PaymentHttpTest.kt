@@ -200,6 +200,20 @@ class PaymentsHttpTest {
     }
 
     @Test
+    fun `liveness and readiness are UP without RabbitMQ`() {
+        assertEquals(200, send("GET", "/actuator/health/liveness").statusCode())
+        assertEquals(200, send("GET", "/actuator/health/readiness").statusCode())
+    }
+
+    @Test
+    fun `unknown route gives a problem+json 404`() {
+        val r = send("GET", "/api/v1/nothing-here")
+        assertEquals(404, r.statusCode())
+        assertTrue(r.headers().firstValue("Content-Type").get().startsWith("application/problem+json"))
+        assertTrue(r.body().contains("\"instance\":\"/api/v1/nothing-here\""))
+    }
+
+    @Test
     fun `the caller's request id is echoed, also on errors`() {
         val ok = send("GET", "/api/v1/payments/pay_UNKNOWN0000", headers = mapOf("X-Request-Id" to "req-123"))
         assertEquals(404, ok.statusCode())
