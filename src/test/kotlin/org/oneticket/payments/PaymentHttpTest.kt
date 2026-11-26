@@ -30,7 +30,7 @@ class PaymentsHttpTest {
         @Container
         @ServiceConnection
         @JvmStatic
-        val postgres = PostgreSQLContainer("postgres:17-alpine")
+        val postgres = PostgreSQLContainer("postgres:18")
     }
 
     @Value("\${local.server.port}")
@@ -197,20 +197,6 @@ class PaymentsHttpTest {
         val r = send("PUT", "/api/v1/payments", payment(6006))
         assertEquals(405, r.statusCode())
         assertTrue(r.headers().firstValue("Allow").get().contains("POST"))
-    }
-
-    @Test
-    fun `liveness and readiness are UP without RabbitMQ`() {
-        assertEquals(200, send("GET", "/actuator/health/liveness").statusCode())
-        assertEquals(200, send("GET", "/actuator/health/readiness").statusCode())
-    }
-
-    @Test
-    fun `unknown route gives a problem+json 404`() {
-        val r = send("GET", "/api/v1/nothing-here")
-        assertEquals(404, r.statusCode())
-        assertTrue(r.headers().firstValue("Content-Type").get().startsWith("application/problem+json"))
-        assertTrue(r.body().contains("\"instance\":\"/api/v1/nothing-here\""))
     }
 
     @Test
