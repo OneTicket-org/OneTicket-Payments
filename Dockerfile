@@ -8,7 +8,11 @@ COPY gradle/ ./gradle/
 RUN chmod +x ./gradlew
 
 COPY src/ ./src/
-RUN ./gradlew --no-daemon bootJar
+# The cache mount keeps ~/.gradle (Gradle distribution + dependencies) between builds,
+# so a source change no longer re-downloads everything.
+# with id to avoid cache collision with other builds, and target to specify the path to cache.
+RUN --mount=type=cache,id=gradle-cache-payments,target=/root/.gradle \
+    ./gradlew --no-daemon bootJar
 
 # Run the packaged application on a JRE-only image.
 FROM eclipse-temurin:25.0.5_8-jre-noble AS runtime
